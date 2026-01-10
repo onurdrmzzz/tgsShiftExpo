@@ -1,0 +1,478 @@
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { format } from 'date-fns';
+import { tr } from 'date-fns/locale';
+import { STRINGS, SHIFT_TIMES, SHIFT_ORDER } from '../../constants';
+import { HomeScreenProps, ShiftType } from '../../types';
+import { useAppStore } from '../../store';
+import { useTheme } from '../../hooks';
+import { getTodayShift, getTomorrowShift, getUpcomingShifts } from '../../services';
+import { getTodayShift30, getTomorrowShift30 } from '../../services/shift30Manager';
+
+const SHIFT_LETTERS: Record<ShiftType, string> = {
+  morning: 'S',
+  evening: 'A',
+  night: 'G',
+  off: 'İ',
+  annual: 'Y',
+  training: 'E',
+  normal: 'N',
+  sick: 'R',
+  excuse: 'M',
+};
+
+export const HomeScreen: React.FC<HomeScreenProps> = () => {
+  const { activeSystem, cycleStartDate, monthlyShifts, getCurrentTeam } = useAppStore();
+  const { colors } = useTheme();
+
+  const today = new Date();
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const team = getCurrentTeam();
+
+  let todayShift: ShiftType | null = null;
+  let tomorrowShift: ShiftType | null = null;
+  let weekShifts: Array<{ date: Date; shift: ShiftType }> = [];
+
+  if (activeSystem === 'system60' && cycleStartDate) {
+    todayShift = getTodayShift(cycleStartDate);
+    tomorrowShift = getTomorrowShift(cycleStartDate);
+    weekShifts = getUpcomingShifts(cycleStartDate, 7);
+  } else if (activeSystem === 'system30') {
+    todayShift = getTodayShift30(monthlyShifts);
+    tomorrowShift = getTomorrowShift30(monthlyShifts);
+
+    for (let i = 0; i < 7; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() + i);
+      const monthKey = format(date, 'yyyy-MM');
+      const day = date.getDate();
+      const shift = monthlyShifts[monthKey]?.[day];
+      if (shift) {
+        weekShifts.push({ date, shift });
+      }
+    }
+  }
+
+  // Shift display helper
+  const getShiftDisplay = (shift: ShiftType) => ({
+    color: colors[shift].background,
+    textColor: colors[shift].text,
+    label: STRINGS.shifts[shift],
+  });
+
+  // Greeting based on time
+  const hour = today.getHours();
+  let greeting = 'Günaydın';
+  if (hour >= 12 && hour < 18) greeting = 'İyi günler';
+  else if (hour >= 18) greeting = 'İyi akşamlar';
+
+  const formattedDate = format(today, "d MMMM EEEE", { locale: tr });
+
+  // Empty state
+  if (!todayShift) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={[styles.greeting, { color: colors.text }]}>{greeting}</Text>
+          <Text style={[styles.date, { color: colors.textSecondary }]}>{formattedDate}</Text>
+        </View>
+        <View style={styles.emptyState}>
+          <View style={[styles.emptyIcon, { backgroundColor: colors.border }]}>
+            <Text style={[styles.emptyIconText, { color: colors.textTertiary }]}>?</Text>
+          </View>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>Vardiya Verisi Yok</Text>
+          <Text style={[styles.emptyDescription, { color: colors.textSecondary }]}>
+            Ayarlardan vardiya bilgilerinizi girin
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const todayDisplay = getShiftDisplay(todayShift);
+  const todayTime = SHIFT_TIMES[todayShift];
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={[styles.greeting, { color: colors.text }]}>{greeting}</Text>
+            <Text style={[styles.date, { color: colors.textSecondary }]}>{formattedDate}</Text>
+          </View>
+          {team && (
+            <View style={[styles.teamBadge, { backgroundColor: colors.primary }]}>
+              <Text style={styles.teamText}>{team}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Today's Shift Card */}
+        <Pressable style={({ pressed }) => [
+          styles.todayCard,
+          { backgroundColor: todayDisplay.color },
+          pressed && { opacity: 0.95 }
+        ]}>
+          <View style={styles.todayHeader}>
+            <Text style={[styles.todayLabel, { color: todayDisplay.textColor }]}>
+              BUGÜN
+            </Text>
+            <View style={[styles.shiftBadge, { backgroundColor: todayDisplay.textColor + '20' }]}>
+              <Text style={[styles.shiftLetter, { color: todayDisplay.textColor }]}>
+                {SHIFT_LETTERS[todayShift]}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={[styles.shiftName, { color: todayDisplay.textColor }]}>
+            {STRINGS.shifts[todayShift]}
+          </Text>
+
+          {todayTime && (
+            <View style={[styles.timeBadge, { backgroundColor: todayDisplay.textColor + '15' }]}>
+              <Text style={[styles.timeText, { color: todayDisplay.textColor }]}>
+                {todayTime.start} - {todayTime.end}
+              </Text>
+            </View>
+          )}
+        </Pressable>
+
+        {/* Tomorrow Card */}
+        {tomorrowShift && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Yarın</Text>
+            <View style={[styles.smallCard, { backgroundColor: getShiftDisplay(tomorrowShift).color }]}>
+              <View style={styles.smallCardContent}>
+                <View>
+                  <Text style={[styles.smallCardDate, { color: getShiftDisplay(tomorrowShift).textColor }]}>
+                    {format(tomorrow, 'd MMMM', { locale: tr })}
+                  </Text>
+                  <Text style={[styles.smallCardShift, { color: getShiftDisplay(tomorrowShift).textColor }]}>
+                    {STRINGS.shifts[tomorrowShift]}
+                  </Text>
+                </View>
+                <View style={[styles.smallBadge, { backgroundColor: getShiftDisplay(tomorrowShift).textColor + '20' }]}>
+                  <Text style={[styles.smallBadgeText, { color: getShiftDisplay(tomorrowShift).textColor }]}>
+                    {SHIFT_LETTERS[tomorrowShift]}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Week Preview */}
+        {weekShifts.length > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Bu Hafta</Text>
+            <View style={[styles.weekCard, { backgroundColor: colors.surface }]}>
+              {weekShifts.map((item, index) => {
+                const dayIndex = item.date.getDay();
+                const dayName = STRINGS.days.narrow[dayIndex === 0 ? 6 : dayIndex - 1];
+                const isToday = index === 0;
+                const display = getShiftDisplay(item.shift);
+
+                return (
+                  <View key={index} style={[
+                    styles.weekDay,
+                    isToday && { backgroundColor: colors.primaryLight }
+                  ]}>
+                    <Text style={[
+                      styles.weekDayName,
+                      { color: isToday ? colors.primary : colors.textTertiary }
+                    ]}>
+                      {dayName}
+                    </Text>
+                    <Text style={[
+                      styles.weekDayNumber,
+                      { color: isToday ? colors.primary : colors.text }
+                    ]}>
+                      {item.date.getDate()}
+                    </Text>
+                    <View style={[styles.weekBadge, { backgroundColor: display.color }]}>
+                      <Text style={[styles.weekBadgeText, { color: display.textColor }]}>
+                        {SHIFT_LETTERS[item.shift]}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* Legend */}
+        <View style={[styles.legendCard, { backgroundColor: colors.surface }]}>
+          {SHIFT_ORDER.map((shift) => {
+            const display = getShiftDisplay(shift);
+            return (
+              <View key={shift} style={styles.legendItem}>
+                <View style={[styles.legendBadge, { backgroundColor: display.color }]}>
+                  <Text style={[styles.legendText, { color: display.textColor }]}>
+                    {SHIFT_LETTERS[shift]}
+                  </Text>
+                </View>
+                <Text style={[styles.legendLabel, { color: colors.textSecondary }]}>
+                  {STRINGS.shifts[shift]}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 24,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 20,
+  },
+  greeting: {
+    fontSize: 28,
+    fontWeight: '700',
+  },
+  date: {
+    fontSize: 15,
+    marginTop: 4,
+    textTransform: 'capitalize',
+  },
+  teamBadge: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  teamText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
+  // Today Card
+  todayCard: {
+    marginHorizontal: 20,
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  todayHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  todayLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+    opacity: 0.7,
+  },
+  shiftBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shiftLetter: {
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  shiftName: {
+    fontSize: 32,
+    fontWeight: '700',
+  },
+  timeBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  timeText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+
+  // Sections
+  section: {
+    marginTop: 24,
+    paddingHorizontal: 20,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+
+  // Small Card (Tomorrow)
+  smallCard: {
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  smallCardContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  smallCardDate: {
+    fontSize: 13,
+    fontWeight: '500',
+    opacity: 0.7,
+  },
+  smallCardShift: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  smallBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  smallBadgeText: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+
+  // Week Card
+  weekCard: {
+    flexDirection: 'row',
+    borderRadius: 16,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  weekDay: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  weekDayName: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  weekDayNumber: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  weekBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weekBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  // Legend
+  legendCard: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    marginHorizontal: 20,
+    marginTop: 24,
+    borderRadius: 16,
+    padding: 12,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  legendItem: {
+    alignItems: 'center',
+    width: '18%',
+    paddingVertical: 8,
+  },
+  legendBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  legendText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  legendLabel: {
+    fontSize: 9,
+    fontWeight: '500',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+
+  // Empty State
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  emptyIconText: {
+    fontSize: 36,
+    fontWeight: '600',
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  emptyDescription: {
+    fontSize: 15,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 22,
+  },
+});

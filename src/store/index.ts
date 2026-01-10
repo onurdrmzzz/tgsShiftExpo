@@ -1,0 +1,145 @@
+import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  ShiftSystem,
+  Team60,
+  Team30,
+  ShiftType,
+  MonthlyShiftData,
+  UserPreferences,
+  ThemeMode,
+} from '../types';
+import { calculateShiftForDate } from '../services/shift60Calculator';
+import { getShiftFromMonthlyData, setShiftInMonthlyData } from '../services/shift30Manager';
+
+interface AppStore {
+  // User preferences
+  preferences: UserPreferences;
+  setOnboardingComplete: (complete: boolean) => void;
+  setTheme: (theme: ThemeMode) => void;
+  setSicilNo: (sicil: string) => void;
+
+  // Active system
+  activeSystem: ShiftSystem | null;
+  setActiveSystem: (system: ShiftSystem) => void;
+
+  // %60 System
+  team60: Team60 | null;
+  cycleStartDate: string | null;
+  setTeam60: (team: Team60) => void;
+  setCycleStartDate: (date: string) => void;
+
+  // %30 System
+  team30: Team30 | null;
+  monthlyShifts: MonthlyShiftData;
+  setTeam30: (team: Team30) => void;
+  setShiftForDate: (date: string, shift: ShiftType) => void;
+  setBulkShifts: (shifts: MonthlyShiftData) => void;
+
+  // Computed / helpers
+  getShiftForDate: (date: string) => ShiftType | null;
+  getCurrentTeam: () => Team60 | Team30 | null;
+
+  // Reset
+  resetApp: () => void;
+}
+
+const initialPreferences: UserPreferences = {
+  onboardingComplete: false,
+  language: 'tr',
+  firstDayOfWeek: 1,
+  theme: 'light',
+  sicilNo: null,
+};
+
+const initialState = {
+  preferences: initialPreferences,
+  activeSystem: null as ShiftSystem | null,
+  team60: null as Team60 | null,
+  cycleStartDate: null as string | null,
+  team30: null as Team30 | null,
+  monthlyShifts: {} as MonthlyShiftData,
+};
+
+export const useAppStore = create<AppStore>()(
+  persist(
+    (set, get) => ({
+      ...initialState,
+
+      setOnboardingComplete: (complete) =>
+        set((state) => ({
+          preferences: { ...state.preferences, onboardingComplete: complete === true },
+        })),
+
+      setTheme: (theme) =>
+        set((state) => ({
+          preferences: { ...state.preferences, theme },
+        })),
+
+      setSicilNo: (sicil) =>
+        set((state) => ({
+          preferences: { ...state.preferences, sicilNo: sicil },
+        })),
+
+      setActiveSystem: (system) => set({ activeSystem: system }),
+
+      setTeam60: (team) => set({ team60: team }),
+
+      setCycleStartDate: (date) => set({ cycleStartDate: date }),
+
+      setTeam30: (team) => set({ team30: team }),
+
+      setShiftForDate: (date, shift) =>
+        set((state) => ({
+          monthlyShifts: setShiftInMonthlyData(date, shift, state.monthlyShifts),
+        })),
+
+      setBulkShifts: (shifts: MonthlyShiftData) =>
+        set((state) => {
+          // Deep merge monthly shifts
+          const merged = { ...state.monthlyShifts };
+          for (const monthKey of Object.keys(shifts)) {
+            merged[monthKey] = {
+              ...merged[monthKey],
+              ...shifts[monthKey],
+            };
+          }
+          return { monthlyShifts: merged };
+        }),
+
+      getShiftForDate: (date) => {
+        const state = get();
+        if (state.activeSystem === 'system60' && state.cycleStartDate) {
+          return calculateShiftForDate(date, state.cycleStartDate);
+        }
+        if (state.activeSystem === 'system30') {
+          return getShiftFromMonthlyData(date, state.monthlyShifts);
+        }
+        return null;
+      },
+
+      getCurrentTeam: () => {
+        const state = get();
+        return state.activeSystem === 'system60' ? state.team60 : state.team30;
+      },
+
+      resetApp: () => set(initialState),
+    }),
+    {
+      name: 'tgs-shift-storage',
+      storage: createJSONStorage(() => AsyncStorage),
+      version: 1,
+      onRehydrateStorage: () => (state) => {
+        // Ensure proper types after rehydration
+        if (state && state.preferences) {
+          state.preferences.onboardingComplete = state.preferences.onboardingComplete === true;
+          // Ensure theme has a valid value
+          if (!state.preferences.theme || (state.preferences.theme !== 'light' && state.preferences.theme !== 'dark')) {
+            state.preferences.theme = 'light';
+          }
+        }
+      },
+    }
+  )
+);
