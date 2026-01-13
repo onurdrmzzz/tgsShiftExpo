@@ -36,6 +36,9 @@ yarn-error.*
 # Google Service Account (sensitive)
 google-service-account.json
 
+# Build artifacts
+*.aab
+
 # typescript
 *.tsbuildinfo
 
