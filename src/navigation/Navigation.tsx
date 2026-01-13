@@ -13,6 +13,7 @@ import {
   ExcelImportScreen,
   HomeScreen,
   CalendarScreen,
+  StatsScreen,
   SettingsScreen,
 } from '../screens';
 import { RootStackParamList, MainTabParamList } from '../types';
@@ -71,6 +72,14 @@ const MainTabs: React.FC = () => {
         options={{
           tabBarLabel: 'Takvim',
           tabBarIcon: ({ focused }) => <TabIcon icon="T" focused={focused} colors={colors} />,
+        }}
+      />
+      <Tab.Screen
+        name="Stats"
+        component={StatsScreen}
+        options={{
+          tabBarLabel: 'İstatistik',
+          tabBarIcon: ({ focused }) => <TabIcon icon="İ" focused={focused} colors={colors} />,
         }}
       />
       <Tab.Screen

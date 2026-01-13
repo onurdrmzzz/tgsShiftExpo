@@ -13,6 +13,9 @@ import {
 import { calculateShiftForDate } from '../services/shift60Calculator';
 import { getShiftFromMonthlyData, setShiftInMonthlyData } from '../services/shift30Manager';
 
+// Shift usage statistics
+type ShiftUsageStats = Partial<Record<ShiftType, number>>;
+
 interface AppStore {
   // User preferences
   preferences: UserPreferences;
@@ -37,6 +40,11 @@ interface AppStore {
   setShiftForDate: (date: string, shift: ShiftType) => void;
   setBulkShifts: (shifts: MonthlyShiftData) => void;
 
+  // Shift usage statistics
+  shiftUsageStats: ShiftUsageStats;
+  incrementShiftUsage: (shift: ShiftType) => void;
+  getTopShifts: () => ShiftType[];
+
   // Computed / helpers
   getShiftForDate: (date: string) => ShiftType | null;
   getCurrentTeam: () => Team60 | Team30 | null;
@@ -60,6 +68,7 @@ const initialState = {
   cycleStartDate: null as string | null,
   team30: null as Team30 | null,
   monthlyShifts: {} as MonthlyShiftData,
+  shiftUsageStats: {} as ShiftUsageStats,
 };
 
 export const useAppStore = create<AppStore>()(
@@ -107,6 +116,23 @@ export const useAppStore = create<AppStore>()(
           }
           return { monthlyShifts: merged };
         }),
+
+      incrementShiftUsage: (shift: ShiftType) =>
+        set((state) => ({
+          shiftUsageStats: {
+            ...state.shiftUsageStats,
+            [shift]: (state.shiftUsageStats[shift] || 0) + 1,
+          },
+        })),
+
+      getTopShifts: () => {
+        const state = get();
+        const stats = state.shiftUsageStats;
+        const entries = Object.entries(stats) as [ShiftType, number][];
+        return entries
+          .sort((a, b) => b[1] - a[1])
+          .map(([shift]) => shift);
+      },
 
       getShiftForDate: (date) => {
         const state = get();

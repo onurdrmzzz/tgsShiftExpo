@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Pressable } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { format, getDaysInMonth, startOfMonth, getDay } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { STRINGS, SHIFT_TIMES, SHIFT_ORDER } from '../../constants';
 import { CalendarScreenProps, ShiftType } from '../../types';
 import { useAppStore } from '../../store';
-import { useTheme } from '../../hooks';
+import { useTheme, useHaptic } from '../../hooks';
 
 const SHIFT_LETTERS: Record<ShiftType, string> = {
   morning: 'S',
@@ -22,9 +22,18 @@ const SHIFT_LETTERS: Record<ShiftType, string> = {
 
 export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
   const { getShiftForDate } = useAppStore();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const haptic = useHaptic();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<number | null>(new Date().getDate());
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
+  }, []);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -63,9 +72,14 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
       days.push(<View key={`empty-${i}`} style={styles.dayCell} />);
     }
 
+    // Tema bazlı bugün renkleri
+    const todayBgColor = isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)';
+    const todayBorderColor = isDark ? '#ffffff' : '#000000';
+    const todayTextColor = isDark ? '#ffffff' : '#000000';
+
     for (let day = 1; day <= daysInMonth; day++) {
       const shift = getShiftForDay(day);
-      const isToday = isCurrentMonth && day === today.getDate();
+      const isTodayDate = isCurrentMonth && day === today.getDate();
       const isSelected = day === selectedDay;
       const display = shift ? getShiftDisplay(shift) : null;
 
@@ -74,16 +88,24 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
           key={day}
           style={({ pressed }) => [
             styles.dayCell,
-            isToday && { backgroundColor: colors.primaryLight, borderRadius: 12 },
-            isSelected && { backgroundColor: colors.primaryLight, borderRadius: 12 },
+            isTodayDate && {
+              backgroundColor: todayBgColor,
+              borderRadius: 12,
+              borderWidth: 2,
+              borderColor: todayBorderColor,
+            },
+            isSelected && !isTodayDate && { backgroundColor: colors.primaryLight, borderRadius: 12 },
             pressed && { opacity: 0.7 },
           ]}
-          onPress={() => setSelectedDay(day)}>
+          onPress={() => {
+            haptic.selection();
+            setSelectedDay(day);
+          }}>
           <Text style={[
             styles.dayNumber,
             { color: colors.text },
-            isToday && { fontWeight: '700', color: colors.primary },
-            isSelected && { fontWeight: '700', color: colors.primaryDark },
+            isTodayDate && { fontWeight: '800', color: todayTextColor },
+            isSelected && !isTodayDate && { fontWeight: '700', color: colors.primaryDark },
           ]}>
             {day}
           </Text>
@@ -113,6 +135,14 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
         {/* Header */}
         <View style={styles.header}>

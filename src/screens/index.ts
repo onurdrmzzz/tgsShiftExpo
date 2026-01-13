@@ -5,4 +5,5 @@ export { MonthlyEntryScreen } from './MonthlyEntryScreen';
 export { ExcelImportScreen } from './ExcelImportScreen';
 export { HomeScreen } from './HomeScreen';
 export { CalendarScreen } from './CalendarScreen';
+export { StatsScreen } from './StatsScreen';
 export { SettingsScreen } from './SettingsScreen';

@@ -1,40 +1,70 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TEAMS_60, TEAMS_30, TEAM_60_CYCLE_STARTS } from '../../constants';
 import { TeamSelectionScreenProps, Team60, Team30 } from '../../types';
 import { useAppStore } from '../../store';
-import { useTheme } from '../../hooks';
+import { useTheme, useHaptic } from '../../hooks';
 
 export const TeamSelectionScreen: React.FC<TeamSelectionScreenProps> = ({
   navigation,
   route,
 }) => {
-  const { system } = route.params;
+  const system = route.params?.system;
   const { setActiveSystem, setTeam60, setTeam30, setCycleStartDate, setOnboardingComplete } = useAppStore();
   const { colors } = useTheme();
+  const haptic = useHaptic();
 
-  const teams = system === 'system60' ? TEAMS_60 : TEAMS_30;
-  const systemLabel = system === 'system60' ? '%60 Sistem' : '%30 Sistem';
+  // If system is provided, show only that system's teams (onboarding flow)
+  // If no system, show all teams (settings flow)
+  const showBothSystems = !system;
+
+  const handleSelectTeam60 = (team: Team60) => {
+    haptic.success();
+    setActiveSystem('system60');
+    setTeam60(team);
+    setCycleStartDate(TEAM_60_CYCLE_STARTS[team]);
+    setOnboardingComplete(true);
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'MainTabs' }],
+    });
+  };
+
+  const handleSelectTeam30 = (team: Team30) => {
+    haptic.success();
+    setActiveSystem('system30');
+    setTeam30(team);
+    navigation.navigate('ExcelImport', { team });
+  };
 
   const handleSelectTeam = (team: string) => {
-    setActiveSystem(system);
-
     if (system === 'system60') {
-      const teamKey = team as Team60;
-      setTeam60(teamKey);
-      // Auto-set cycle start date from predefined values
-      setCycleStartDate(TEAM_60_CYCLE_STARTS[teamKey]);
-      setOnboardingComplete(true);
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'MainTabs' }],
-      });
-    } else {
-      setTeam30(team as Team30);
-      navigation.navigate('ExcelImport', { team: team as Team30 });
+      handleSelectTeam60(team as Team60);
+    } else if (system === 'system30') {
+      handleSelectTeam30(team as Team30);
     }
   };
+
+  const renderTeamGrid = (teams: readonly string[], onSelect: (team: string) => void) => (
+    <View style={styles.grid}>
+      {teams.map((team) => (
+        <Pressable
+          key={team}
+          style={({ pressed }) => [
+            styles.teamCard,
+            { backgroundColor: colors.surface },
+            pressed && styles.teamCardPressed,
+          ]}
+          onPress={() => onSelect(team)}
+        >
+          <View style={[styles.teamIconContainer, { backgroundColor: colors.primaryLight }]}>
+            <Text style={[styles.teamIcon, { color: colors.primary }]}>{team}</Text>
+          </View>
+        </Pressable>
+      ))}
+    </View>
+  );
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
@@ -50,31 +80,48 @@ export const TeamSelectionScreen: React.FC<TeamSelectionScreenProps> = ({
         <View style={styles.headerContent}>
           <Text style={[styles.title, { color: colors.text }]}>Ekip Seçimi</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {systemLabel} için ekibinizi seçin
+            {showBothSystems ? 'Ekibinizi seçin' : `${system === 'system60' ? '%60 Sistem' : '%30 Sistem'} için ekibinizi seçin`}
           </Text>
         </View>
       </View>
 
-      {/* Grid */}
-      <View style={styles.content}>
-        <View style={styles.grid}>
-          {teams.map((team, index) => (
-            <Pressable
-              key={team}
-              style={({ pressed }) => [
-                styles.teamCard,
-                { backgroundColor: colors.surface },
-                pressed && styles.teamCardPressed,
-              ]}
-              onPress={() => handleSelectTeam(team)}
-            >
-              <View style={[styles.teamIconContainer, { backgroundColor: colors.primaryLight }]}>
-                <Text style={[styles.teamIcon, { color: colors.primary }]}>{team}</Text>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.content}>
+          {/* Show both systems or just one */}
+          {showBothSystems ? (
+            <>
+              {/* %60 System Section */}
+              <View style={styles.systemSection}>
+                <Text style={[styles.systemTitle, { color: colors.text }]}>%60 Sistem</Text>
+                <Text style={[styles.systemDescription, { color: colors.textSecondary }]}>
+                  Otomatik vardiya hesaplama
+                </Text>
+                {renderTeamGrid(TEAMS_60, (team) => handleSelectTeam60(team as Team60))}
               </View>
-            </Pressable>
-          ))}
+
+              {/* Divider */}
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+              {/* %30 System Section */}
+              <View style={styles.systemSection}>
+                <Text style={[styles.systemTitle, { color: colors.text }]}>%30 Sistem</Text>
+                <Text style={[styles.systemDescription, { color: colors.textSecondary }]}>
+                  Manuel vardiya girişi
+                </Text>
+                {renderTeamGrid(TEAMS_30, (team) => handleSelectTeam30(team as Team30))}
+              </View>
+            </>
+          ) : (
+            <>
+              {/* Single system view (onboarding) */}
+              {renderTeamGrid(
+                system === 'system60' ? TEAMS_60 : TEAMS_30,
+                handleSelectTeam
+              )}
+            </>
+          )}
         </View>
-      </View>
+      </ScrollView>
 
       {/* Footer */}
       <View style={styles.footer}>
@@ -125,9 +172,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 2,
   },
-  content: {
+  scrollView: {
     flex: 1,
+  },
+  content: {
     paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  systemSection: {
+    marginBottom: 8,
+  },
+  systemTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  systemDescription: {
+    fontSize: 13,
+    marginBottom: 16,
+  },
+  divider: {
+    height: 1,
+    marginVertical: 24,
   },
   grid: {
     flexDirection: 'row',

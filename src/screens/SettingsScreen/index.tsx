@@ -123,9 +123,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
   };
 
   const handleChangeTeam = () => {
-    if (activeSystem) {
-      navigation.navigate('TeamSelection', { system: activeSystem });
-    }
+    navigation.navigate('TeamSelection');
   };
 
   const handleChangeCycleStart = () => {

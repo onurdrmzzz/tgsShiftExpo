@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -24,7 +24,16 @@ const SHIFT_LETTERS: Record<ShiftType, string> = {
 
 export const HomeScreen: React.FC<HomeScreenProps> = () => {
   const { activeSystem, cycleStartDate, monthlyShifts, getCurrentTeam } = useAppStore();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    // Simulate refresh - in real app this could sync data
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
+  }, []);
 
   const today = new Date();
   const tomorrow = new Date();
@@ -101,6 +110,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = () => {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
         {/* Header */}
         <View style={styles.header}>
@@ -170,44 +187,56 @@ export const HomeScreen: React.FC<HomeScreenProps> = () => {
         )}
 
         {/* Week Preview */}
-        {weekShifts.length > 0 && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Bu Hafta</Text>
-            <View style={[styles.weekCard, { backgroundColor: colors.surface }]}>
-              {weekShifts.map((item, index) => {
-                const dayIndex = item.date.getDay();
-                const dayName = STRINGS.days.narrow[dayIndex === 0 ? 6 : dayIndex - 1];
-                const isToday = index === 0;
-                const display = getShiftDisplay(item.shift);
+        {weekShifts.length > 0 && (() => {
+          const todayBgColor = isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)';
+          const todayBorderColor = isDark ? '#ffffff' : '#000000';
+          const todayTextColor = isDark ? '#ffffff' : '#000000';
 
-                return (
-                  <View key={index} style={[
-                    styles.weekDay,
-                    isToday && { backgroundColor: colors.primaryLight }
-                  ]}>
-                    <Text style={[
-                      styles.weekDayName,
-                      { color: isToday ? colors.primary : colors.textTertiary }
+          return (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Bu Hafta</Text>
+              <View style={[styles.weekCard, { backgroundColor: colors.surface }]}>
+                {weekShifts.map((item, index) => {
+                  const dayIndex = item.date.getDay();
+                  const dayName = STRINGS.days.narrow[dayIndex === 0 ? 6 : dayIndex - 1];
+                  const isTodayDate = index === 0;
+                  const display = getShiftDisplay(item.shift);
+
+                  return (
+                    <View key={index} style={[
+                      styles.weekDay,
+                      isTodayDate && {
+                        backgroundColor: todayBgColor,
+                        borderWidth: 2,
+                        borderColor: todayBorderColor,
+                      }
                     ]}>
-                      {dayName}
-                    </Text>
-                    <Text style={[
-                      styles.weekDayNumber,
-                      { color: isToday ? colors.primary : colors.text }
-                    ]}>
-                      {item.date.getDate()}
-                    </Text>
-                    <View style={[styles.weekBadge, { backgroundColor: display.color }]}>
-                      <Text style={[styles.weekBadgeText, { color: display.textColor }]}>
-                        {SHIFT_LETTERS[item.shift]}
+                      <Text style={[
+                        styles.weekDayName,
+                        { color: isTodayDate ? todayTextColor : colors.textTertiary },
+                        isTodayDate && { fontWeight: '800' }
+                      ]}>
+                        {dayName}
                       </Text>
+                      <Text style={[
+                        styles.weekDayNumber,
+                        { color: isTodayDate ? todayTextColor : colors.text },
+                        isTodayDate && { fontWeight: '800' }
+                      ]}>
+                        {item.date.getDate()}
+                      </Text>
+                      <View style={[styles.weekBadge, { backgroundColor: display.color }]}>
+                        <Text style={[styles.weekBadgeText, { color: display.textColor }]}>
+                          {SHIFT_LETTERS[item.shift]}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
-                );
-              })}
+                  );
+                })}
+              </View>
             </View>
-          </View>
-        )}
+          );
+        })()}
 
         {/* Legend */}
         <View style={[styles.legendCard, { backgroundColor: colors.surface }]}>

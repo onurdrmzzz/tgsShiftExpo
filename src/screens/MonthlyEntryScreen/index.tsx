@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Pressable, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { format, getDaysInMonth, startOfMonth, getDay } from 'date-fns';
+import { format, getDaysInMonth, startOfMonth, getDay, isToday } from 'date-fns';
 import { STRINGS, SHIFT_ORDER } from '../../constants';
 import { MonthlyEntryScreenProps, ShiftType } from '../../types';
 import { useAppStore } from '../../store';
-import { useTheme } from '../../hooks';
-import { getNextShiftType } from '../../services';
+import { useTheme, useHaptic } from '../../hooks';
 
 const SHIFT_LETTERS: Record<ShiftType, string> = {
   morning: 'S',
@@ -23,9 +22,12 @@ const SHIFT_LETTERS: Record<ShiftType, string> = {
 export const MonthlyEntryScreen: React.FC<MonthlyEntryScreenProps> = ({
   navigation,
 }) => {
-  const { setShiftForDate, setOnboardingComplete, monthlyShifts } = useAppStore();
-  const { colors } = useTheme();
+  const { setShiftForDate, setOnboardingComplete, monthlyShifts, incrementShiftUsage, getTopShifts } = useAppStore();
+  const { colors, isDark } = useTheme();
+  const haptic = useHaptic();
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -43,10 +45,29 @@ export const MonthlyEntryScreen: React.FC<MonthlyEntryScreenProps> = ({
   });
 
   const handleDayPress = (day: number) => {
-    const dateStr = format(new Date(year, month, day), 'yyyy-MM-dd');
-    const currentShift = shifts[day] || null;
-    const nextShift = getNextShiftType(currentShift);
-    setShiftForDate(dateStr, nextShift);
+    haptic.light();
+    setSelectedDay(day);
+    setModalVisible(true);
+  };
+
+  const handleSelectShift = (shift: ShiftType) => {
+    haptic.success();
+    if (selectedDay) {
+      const dateStr = format(new Date(year, month, selectedDay), 'yyyy-MM-dd');
+      setShiftForDate(dateStr, shift);
+      incrementShiftUsage(shift);
+    }
+    setModalVisible(false);
+    setSelectedDay(null);
+  };
+
+  const handleClearShift = () => {
+    if (selectedDay) {
+      const dateStr = format(new Date(year, month, selectedDay), 'yyyy-MM-dd');
+      setShiftForDate(dateStr, null as any);
+    }
+    setModalVisible(false);
+    setSelectedDay(null);
   };
 
   const handleSave = () => {
@@ -76,15 +97,28 @@ export const MonthlyEntryScreen: React.FC<MonthlyEntryScreenProps> = ({
     for (let day = 1; day <= daysInMonth; day++) {
       const shift = shifts[day] as ShiftType | undefined;
       const display = shift ? getShiftDisplay(shift) : null;
+      const dateForDay = new Date(year, month, day);
+      const isTodayDate = isToday(dateForDay);
+
+      const todayBgColor = isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)';
+      const todayBorderColor = isDark ? '#ffffff' : '#000000';
+      const todayTextColor = isDark ? '#ffffff' : '#000000';
 
       days.push(
         <TouchableOpacity
           key={day}
-          style={styles.dayCell}
+          style={[
+            styles.dayCell,
+            isTodayDate && { backgroundColor: todayBgColor, borderColor: todayBorderColor },
+          ]}
           onPress={() => handleDayPress(day)}
           activeOpacity={0.7}
         >
-          <Text style={[styles.dayNumber, { color: colors.text }]}>{day}</Text>
+          <Text style={[
+            styles.dayNumber,
+            { color: colors.text },
+            isTodayDate && { color: todayTextColor, fontWeight: '800' },
+          ]}>{day}</Text>
           {shift && display ? (
             <View style={[styles.shiftBadge, { backgroundColor: display.color }]}>
               <Text style={[styles.shiftLetter, { color: display.textColor }]}>
@@ -105,6 +139,17 @@ export const MonthlyEntryScreen: React.FC<MonthlyEntryScreenProps> = ({
 
   const completedDays = Object.keys(shifts).length;
   const progress = Math.round((completedDays / daysInMonth) * 100);
+
+  const selectedDateStr = selectedDay
+    ? `${selectedDay} ${STRINGS.months[month]} ${year}`
+    : '';
+
+  // Get sorted shifts - most used first, then default order for unused
+  const sortedShifts = (() => {
+    const topShifts = getTopShifts();
+    const remaining = SHIFT_ORDER.filter(s => !topShifts.includes(s));
+    return [...topShifts, ...remaining];
+  })();
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
@@ -219,6 +264,69 @@ export const MonthlyEntryScreen: React.FC<MonthlyEntryScreenProps> = ({
           </Text>
         </Pressable>
       </View>
+
+      {/* Shift Picker Modal */}
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>{selectedDateStr}</Text>
+              <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>Vardiya Seçin</Text>
+            </View>
+
+            {/* Shift Grid */}
+            <View style={styles.shiftGrid}>
+              {sortedShifts.map((shift) => {
+                const display = getShiftDisplay(shift);
+                const isSelected = selectedDay ? shifts[selectedDay] === shift : false;
+                return (
+                  <TouchableOpacity
+                    key={shift}
+                    style={[
+                      styles.shiftOption,
+                      { backgroundColor: display.color },
+                      isSelected ? styles.shiftOptionSelected : null,
+                    ]}
+                    onPress={() => handleSelectShift(shift)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.shiftOptionLetter, { color: display.textColor }]}>
+                      {SHIFT_LETTERS[shift]}
+                    </Text>
+                    <Text style={[styles.shiftOptionLabel, { color: display.textColor }]} numberOfLines={1}>
+                      {STRINGS.shifts[shift]}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Modal Actions */}
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.clearButton, { borderColor: colors.border }]}
+                onPress={handleClearShift}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.clearButtonText, { color: colors.error }]}>Temizle</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton, { backgroundColor: colors.border }]}
+                onPress={() => setModalVisible(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.cancelButtonText, { color: colors.text }]}>İptal</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -368,6 +476,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 2,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
   dayNumber: {
     fontSize: 12,
@@ -456,6 +567,90 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     fontSize: 17,
+    fontWeight: '600',
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 10,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    marginTop: 4,
+  },
+  shiftGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  shiftOption: {
+    width: '30%',
+    aspectRatio: 1,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+  },
+  shiftOptionSelected: {
+    borderWidth: 3,
+    borderColor: '#000',
+  },
+  shiftOptionLetter: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  shiftOptionLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    marginTop: 24,
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clearButton: {
+    borderWidth: 1,
+    backgroundColor: 'transparent',
+  },
+  clearButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  cancelButton: {},
+  cancelButtonText: {
+    fontSize: 15,
     fontWeight: '600',
   },
 });
