@@ -17,13 +17,22 @@
     "production": {
       "android": {
         "buildType": "app-bundle"
+      },
+      "ios": {
+        "resourceClass": "m-medium"
       }
     }
   },
   "submit": {
     "production": {
       "android": {
+        "serviceAccountKeyPath": "./google-service-account.json",
         "track": "internal"
+      },
+      "ios": {
+        "appleId": "onurdrmzzz@gmail.com",
+        "ascAppId": "6757758214",
+        "appleTeamId": "596Q4Y677Y"
       }
     }
   }
