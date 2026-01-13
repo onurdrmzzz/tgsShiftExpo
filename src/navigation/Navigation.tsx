@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text, View, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   OnboardingScreen,
@@ -38,6 +39,7 @@ const TabIcon: React.FC<{ icon: string; focused: boolean; colors: any }> = ({ ic
 
 const MainTabs: React.FC = () => {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
@@ -48,8 +50,8 @@ const MainTabs: React.FC = () => {
           borderTopColor: colors.border,
           borderTopWidth: 1,
           paddingTop: 6,
-          paddingBottom: 6,
-          height: 65,
+          paddingBottom: Math.max(6, insets.bottom),
+          height: 65 + insets.bottom,
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textTertiary,
