@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Pressable, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Pressable, RefreshControl, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { format, getDaysInMonth, startOfMonth, getDay } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -21,12 +21,14 @@ const SHIFT_LETTERS: Record<ShiftType, string> = {
 };
 
 export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
-  const { getShiftForDate } = useAppStore();
+  const { getShiftForDate, setShiftOverride } = useAppStore();
   const { colors, isDark } = useTheme();
   const haptic = useHaptic();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<number | null>(new Date().getDate());
   const [refreshing, setRefreshing] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingDay, setEditingDay] = useState<number | null>(null);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -99,7 +101,14 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
           ]}
           onPress={() => {
             haptic.selection();
-            setSelectedDay(day);
+            if (selectedDay === day) {
+              // Double tap - show edit modal
+              setEditingDay(day);
+              setShowEditModal(true);
+              haptic.medium();
+            } else {
+              setSelectedDay(day);
+            }
           }}>
           <Text style={[
             styles.dayNumber,
@@ -121,6 +130,16 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
     }
 
     return days;
+  };
+
+  const handleShiftChange = (newShift: ShiftType) => {
+    if (editingDay) {
+      const dateStr = format(new Date(year, month, editingDay), 'yyyy-MM-dd');
+      setShiftOverride(dateStr, newShift);
+      haptic.success();
+    }
+    setShowEditModal(false);
+    setEditingDay(null);
   };
 
   const selectedShift = selectedDay ? getShiftForDay(selectedDay) : null;
@@ -231,6 +250,65 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
           })}
         </View>
       </ScrollView>
+
+      {/* Edit Shift Modal */}
+      <Modal
+        visible={showEditModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowEditModal(false)}
+        >
+          <Pressable style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Vardiya Değiştir
+            </Text>
+            {editingDay && (
+              <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+                {format(new Date(year, month, editingDay), "d MMMM EEEE", { locale: tr })}
+              </Text>
+            )}
+            <View style={styles.modalOptions}>
+              {SHIFT_ORDER.map((shift) => {
+                const display = getShiftDisplay(shift);
+                const isCurrentShift = editingDay && getShiftForDay(editingDay) === shift;
+                return (
+                  <Pressable
+                    key={shift}
+                    style={[
+                      styles.modalOption,
+                      { backgroundColor: display.color },
+                      isCurrentShift && styles.modalOptionSelected,
+                    ]}
+                    onPress={() => handleShiftChange(shift)}
+                  >
+                    <View style={[styles.modalOptionBadge, { backgroundColor: display.textColor + '20' }]}>
+                      <Text style={[styles.modalOptionLetter, { color: display.textColor }]}>
+                        {SHIFT_LETTERS[shift]}
+                      </Text>
+                    </View>
+                    <Text style={[styles.modalOptionLabel, { color: display.textColor }]}>
+                      {STRINGS.shifts[shift]}
+                    </Text>
+                    {isCurrentShift && (
+                      <Text style={[styles.modalCurrentBadge, { color: display.textColor }]}>✓</Text>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Pressable
+              style={[styles.modalCancelButton, { backgroundColor: colors.border }]}
+              onPress={() => setShowEditModal(false)}
+            >
+              <Text style={[styles.modalCancelText, { color: colors.text }]}>İptal</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -415,5 +493,81 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginTop: 4,
     textAlign: 'center',
+  },
+
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20,
+    textTransform: 'capitalize',
+  },
+  modalOptions: {
+    gap: 10,
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+  },
+  modalOptionSelected: {
+    borderWidth: 2,
+    borderColor: 'rgba(0,0,0,0.2)',
+  },
+  modalOptionBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  modalOptionLetter: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  modalOptionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+  },
+  modalCurrentBadge: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  modalCancelButton: {
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

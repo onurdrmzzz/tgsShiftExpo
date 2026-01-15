@@ -16,6 +16,9 @@ import { getShiftFromMonthlyData, setShiftInMonthlyData } from '../services/shif
 // Shift usage statistics
 type ShiftUsageStats = Partial<Record<ShiftType, number>>;
 
+// Shift overrides - allows overriding calculated shifts for specific dates
+type ShiftOverrides = Record<string, ShiftType>; // date string -> shift type
+
 interface AppStore {
   // User preferences
   preferences: UserPreferences;
@@ -39,6 +42,11 @@ interface AppStore {
   setTeam30: (team: Team30) => void;
   setShiftForDate: (date: string, shift: ShiftType) => void;
   setBulkShifts: (shifts: MonthlyShiftData) => void;
+
+  // Shift overrides (for manual changes)
+  shiftOverrides: ShiftOverrides;
+  setShiftOverride: (date: string, shift: ShiftType) => void;
+  clearShiftOverride: (date: string) => void;
 
   // Shift usage statistics
   shiftUsageStats: ShiftUsageStats;
@@ -68,6 +76,7 @@ const initialState = {
   cycleStartDate: null as string | null,
   team30: null as Team30 | null,
   monthlyShifts: {} as MonthlyShiftData,
+  shiftOverrides: {} as ShiftOverrides,
   shiftUsageStats: {} as ShiftUsageStats,
 };
 
@@ -117,6 +126,17 @@ export const useAppStore = create<AppStore>()(
           return { monthlyShifts: merged };
         }),
 
+      setShiftOverride: (date, shift) =>
+        set((state) => ({
+          shiftOverrides: { ...state.shiftOverrides, [date]: shift },
+        })),
+
+      clearShiftOverride: (date) =>
+        set((state) => {
+          const { [date]: _, ...rest } = state.shiftOverrides;
+          return { shiftOverrides: rest };
+        }),
+
       incrementShiftUsage: (shift: ShiftType) =>
         set((state) => ({
           shiftUsageStats: {
@@ -136,6 +156,11 @@ export const useAppStore = create<AppStore>()(
 
       getShiftForDate: (date) => {
         const state = get();
+        // Check for manual override first
+        if (state.shiftOverrides[date]) {
+          return state.shiftOverrides[date];
+        }
+        // Otherwise use system-based calculation
         if (state.activeSystem === 'system60' && state.cycleStartDate) {
           return calculateShiftForDate(date, state.cycleStartDate);
         }

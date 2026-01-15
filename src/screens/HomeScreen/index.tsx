@@ -22,7 +22,7 @@ const SHIFT_LETTERS: Record<ShiftType, string> = {
   excuse: 'M',
 };
 
-export const HomeScreen: React.FC<HomeScreenProps> = () => {
+export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { activeSystem, cycleStartDate, monthlyShifts, getCurrentTeam } = useAppStore();
   const { colors, isDark } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
@@ -133,11 +133,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = () => {
         </View>
 
         {/* Today's Shift Card */}
-        <Pressable style={({ pressed }) => [
-          styles.todayCard,
-          { backgroundColor: todayDisplay.color },
-          pressed && { opacity: 0.95 }
-        ]}>
+        <Pressable
+          onPress={() => navigation.navigate('Calendar')}
+          style={({ pressed }) => [
+            styles.todayCard,
+            { backgroundColor: todayDisplay.color },
+            pressed && { opacity: 0.95 }
+          ]}>
           <View style={styles.todayHeader}>
             <Text style={[styles.todayLabel, { color: todayDisplay.textColor }]}>
               BUGÜN
@@ -193,7 +195,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = () => {
           const todayTextColor = isDark ? '#ffffff' : '#000000';
 
           return (
-            <View style={styles.section}>
+            <Pressable
+              style={styles.section}
+              onPress={() => navigation.navigate('Calendar')}
+            >
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Bu Hafta</Text>
               <View style={[styles.weekCard, { backgroundColor: colors.surface }]}>
                 {weekShifts.map((item, index) => {
@@ -234,7 +239,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = () => {
                   );
                 })}
               </View>
-            </View>
+            </Pressable>
           );
         })()}
 
