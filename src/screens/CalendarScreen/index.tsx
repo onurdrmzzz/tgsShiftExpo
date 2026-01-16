@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Pressable, RefreshControl, Modal } from 'react-native';
+import React, { useState, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Pressable, RefreshControl, Modal, PanResponder, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { format, getDaysInMonth, startOfMonth, getDay } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -30,6 +30,47 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingDay, setEditingDay] = useState<number | null>(null);
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
+
+  // Ref to track current date for swipe gestures
+  const currentDateRef = useRef(currentDate);
+  currentDateRef.current = currentDate;
+
+  // Swipe gesture handling
+  const panX = useRef(new Animated.Value(0)).current;
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dy) < 50;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        panX.setValue(gestureState.dx);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const date = currentDateRef.current;
+        const y = date.getFullYear();
+        const m = date.getMonth();
+
+        if (gestureState.dx > 50) {
+          // Swipe right - previous month (backward)
+          haptic.selection();
+          setCurrentDate(new Date(y, m - 1, 1));
+          setSelectedDay(null);
+        } else if (gestureState.dx < -50) {
+          // Swipe left - next month (forward)
+          haptic.selection();
+          setCurrentDate(new Date(y, m + 1, 1));
+          setSelectedDay(null);
+        }
+        Animated.spring(panX, {
+          toValue: 0,
+          useNativeDriver: true,
+        }).start();
+      },
+    })
+  ).current;
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -51,6 +92,19 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
   const handleNextMonth = () => {
     setCurrentDate(new Date(year, month + 1, 1));
     setSelectedDay(null);
+  };
+
+  const handleMonthSelect = (selectedMonth: number) => {
+    haptic.selection();
+    setCurrentDate(new Date(pickerYear, selectedMonth, 1));
+    setSelectedDay(null);
+    setShowMonthPicker(false);
+  };
+
+  const openMonthPicker = () => {
+    haptic.selection();
+    setPickerYear(year);
+    setShowMonthPicker(true);
   };
 
   const getShiftForDay = (day: number): ShiftType | null => {
@@ -177,9 +231,12 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
           >
             <Text style={[styles.navArrow, { color: colors.primary }]}>{'‹'}</Text>
           </TouchableOpacity>
-          <Text style={[styles.monthTitle, { color: colors.text }]}>
-            {STRINGS.months[month]} {year}
-          </Text>
+          <TouchableOpacity onPress={openMonthPicker} style={styles.monthTitleButton}>
+            <Text style={[styles.monthTitle, { color: colors.text }]}>
+              {STRINGS.months[month]} {year}
+            </Text>
+            <Text style={[styles.monthTitleArrow, { color: colors.textTertiary }]}>▼</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             onPress={handleNextMonth}
             style={[styles.navButton, { backgroundColor: colors.surface }]}
@@ -188,8 +245,15 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Calendar Card */}
-        <View style={[styles.calendarCard, { backgroundColor: colors.surface }]}>
+        {/* Calendar Card with Swipe */}
+        <Animated.View
+          {...panResponder.panHandlers}
+          style={[
+            styles.calendarCard,
+            { backgroundColor: colors.surface },
+            { transform: [{ translateX: panX }] }
+          ]}
+        >
           {/* Week Headers */}
           <View style={[styles.weekHeader, { borderBottomColor: colors.border }]}>
             {STRINGS.days.narrow.map((day, index) => (
@@ -201,7 +265,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
 
           {/* Calendar Grid */}
           <View style={styles.calendarGrid}>{renderCalendar()}</View>
-        </View>
+        </Animated.View>
 
         {/* Selected Day Details */}
         {selectedDay && selectedShift && (() => {
@@ -319,6 +383,73 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Month/Year Picker Modal */}
+      <Modal
+        visible={showMonthPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowMonthPicker(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowMonthPicker(false)}
+        >
+          <Pressable style={[styles.pickerModalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Ay ve Yıl Seçin
+            </Text>
+
+            {/* Year Selector */}
+            <View style={styles.yearSelector}>
+              <TouchableOpacity
+                onPress={() => { haptic.selection(); setPickerYear(pickerYear - 1); }}
+                style={[styles.yearNavButton, { backgroundColor: colors.border }]}
+              >
+                <Text style={[styles.yearNavArrow, { color: colors.text }]}>{'‹'}</Text>
+              </TouchableOpacity>
+              <Text style={[styles.yearText, { color: colors.text }]}>{pickerYear}</Text>
+              <TouchableOpacity
+                onPress={() => { haptic.selection(); setPickerYear(pickerYear + 1); }}
+                style={[styles.yearNavButton, { backgroundColor: colors.border }]}
+              >
+                <Text style={[styles.yearNavArrow, { color: colors.text }]}>{'›'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Month Grid */}
+            <View style={styles.monthGrid}>
+              {STRINGS.months.map((monthName, index) => {
+                const isCurrentMonth = index === month && pickerYear === year;
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.monthItem,
+                      { backgroundColor: isCurrentMonth ? colors.primary : colors.border },
+                    ]}
+                    onPress={() => handleMonthSelect(index)}
+                  >
+                    <Text style={[
+                      styles.monthItemText,
+                      { color: isCurrentMonth ? '#fff' : colors.text }
+                    ]}>
+                      {monthName.slice(0, 3)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Pressable
+              style={[styles.modalCancelButton, { backgroundColor: colors.border }]}
+              onPress={() => setShowMonthPicker(false)}
+            >
+              <Text style={[styles.modalCancelText, { color: colors.text }]}>İptal</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -368,6 +499,16 @@ const styles = StyleSheet.create({
   monthTitle: {
     fontSize: 18,
     fontWeight: '600',
+  },
+  monthTitleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  monthTitleArrow: {
+    fontSize: 10,
+    marginLeft: 6,
   },
   calendarCard: {
     marginHorizontal: 20,
@@ -584,6 +725,58 @@ const styles = StyleSheet.create({
   },
   modalCancelText: {
     fontSize: 16,
+    fontWeight: '600',
+  },
+
+  // Month Picker Modal
+  pickerModalContent: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  yearSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    marginBottom: 20,
+  },
+  yearNavButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  yearNavArrow: {
+    fontSize: 22,
+    fontWeight: '500',
+  },
+  yearText: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginHorizontal: 24,
+  },
+  monthGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  monthItem: {
+    width: '30%',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  monthItemText: {
+    fontSize: 15,
     fontWeight: '600',
   },
 });
