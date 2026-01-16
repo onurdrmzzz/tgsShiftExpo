@@ -7,6 +7,7 @@ import { STRINGS, SHIFT_TIMES, SHIFT_ORDER } from '../../constants';
 import { CalendarScreenProps, ShiftType } from '../../types';
 import { useAppStore } from '../../store';
 import { useTheme, useHaptic } from '../../hooks';
+import { getTeams60WithShift, formatMatchingTeams } from '../../services';
 
 const SHIFT_LETTERS: Record<ShiftType, string> = {
   morning: 'S',
@@ -21,7 +22,7 @@ const SHIFT_LETTERS: Record<ShiftType, string> = {
 };
 
 export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
-  const { getShiftForDate, setShiftOverride } = useAppStore();
+  const { getShiftForDate, setShiftOverride, activeSystem } = useAppStore();
   const { colors, isDark } = useTheme();
   const haptic = useHaptic();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -205,6 +206,10 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
         {/* Selected Day Details */}
         {selectedDay && selectedShift && (() => {
           const display = getShiftDisplay(selectedShift);
+          const selectedDate = new Date(year, month, selectedDay);
+          const matchingTeams = activeSystem === 'system30'
+            ? getTeams60WithShift(selectedDate, selectedShift)
+            : [];
           return (
             <View style={[styles.detailCard, { backgroundColor: display.color }]}>
               <View style={styles.detailHeader}>
@@ -226,6 +231,11 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
                     {SHIFT_TIMES[selectedShift]!.start} - {SHIFT_TIMES[selectedShift]!.end}
                   </Text>
                 </View>
+              )}
+              {matchingTeams.length > 0 && (
+                <Text style={[styles.detailMatchingTeams, { color: display.textColor }]}>
+                  {formatMatchingTeams(matchingTeams)}
+                </Text>
               )}
             </View>
           );
@@ -281,7 +291,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
                     style={[
                       styles.modalOption,
                       { backgroundColor: display.color },
-                      isCurrentShift && styles.modalOptionSelected,
+                      isCurrentShift ? styles.modalOptionSelected : undefined,
                     ]}
                     onPress={() => handleShiftChange(shift)}
                   >
@@ -456,6 +466,12 @@ const styles = StyleSheet.create({
   detailTime: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  detailMatchingTeams: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginTop: 12,
+    opacity: 0.8,
   },
   legendCard: {
     flexDirection: 'row',

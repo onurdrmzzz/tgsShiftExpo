@@ -7,7 +7,7 @@ import { STRINGS, SHIFT_TIMES, SHIFT_ORDER } from '../../constants';
 import { HomeScreenProps, ShiftType } from '../../types';
 import { useAppStore } from '../../store';
 import { useTheme } from '../../hooks';
-import { getTodayShift, getTomorrowShift, getUpcomingShifts } from '../../services';
+import { getTodayShift, getTomorrowShift, getUpcomingShifts, getTeams60WithShift, formatMatchingTeams } from '../../services';
 import { getTodayShift30, getTomorrowShift30 } from '../../services/shift30Manager';
 
 const SHIFT_LETTERS: Record<ShiftType, string> = {
@@ -71,6 +71,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     textColor: colors[shift].text,
     label: STRINGS.shifts[shift],
   });
+
+  // Get matching 60% teams for System30 users
+  const todayMatchingTeams = activeSystem === 'system30' && todayShift
+    ? getTeams60WithShift(today, todayShift)
+    : [];
+  const tomorrowMatchingTeams = activeSystem === 'system30' && tomorrowShift
+    ? getTeams60WithShift(tomorrow, tomorrowShift)
+    : [];
 
   // Greeting based on time
   const hour = today.getHours();
@@ -162,6 +170,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               </Text>
             </View>
           )}
+
+          {/* Matching 60% teams for System30 users */}
+          {todayMatchingTeams.length > 0 && (
+            <View style={styles.matchingTeamsRow}>
+              <Text style={[styles.matchingTeamsText, { color: todayDisplay.textColor }]}>
+                {formatMatchingTeams(todayMatchingTeams)}
+              </Text>
+            </View>
+          )}
         </Pressable>
 
         {/* Tomorrow Card */}
@@ -177,6 +194,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   <Text style={[styles.smallCardShift, { color: getShiftDisplay(tomorrowShift).textColor }]}>
                     {STRINGS.shifts[tomorrowShift]}
                   </Text>
+                  {tomorrowMatchingTeams.length > 0 && (
+                    <Text style={[styles.smallCardTeams, { color: getShiftDisplay(tomorrowShift).textColor }]}>
+                      {formatMatchingTeams(tomorrowMatchingTeams)}
+                    </Text>
+                  )}
                 </View>
                 <View style={[styles.smallBadge, { backgroundColor: getShiftDisplay(tomorrowShift).textColor + '20' }]}>
                   <Text style={[styles.smallBadgeText, { color: getShiftDisplay(tomorrowShift).textColor }]}>
@@ -354,6 +376,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
+  // Matching Teams
+  matchingTeamsRow: {
+    marginTop: 12,
+  },
+  matchingTeamsText: {
+    fontSize: 13,
+    fontWeight: '500',
+    opacity: 0.8,
+  },
+
   // Sections
   section: {
     marginTop: 24,
@@ -389,6 +421,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     marginTop: 2,
+  },
+  smallCardTeams: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 4,
+    opacity: 0.8,
   },
   smallBadge: {
     width: 40,
