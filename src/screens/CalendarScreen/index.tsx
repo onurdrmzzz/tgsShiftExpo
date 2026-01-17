@@ -1,13 +1,14 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Pressable, RefreshControl, Modal, PanResponder, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Pressable, RefreshControl, Modal, PanResponder, Animated, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { format, getDaysInMonth, startOfMonth, getDay } from 'date-fns';
+import { format, getDaysInMonth, startOfMonth, getDay, addDays } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { STRINGS, SHIFT_TIMES, SHIFT_ORDER } from '../../constants';
 import { CalendarScreenProps, ShiftType } from '../../types';
 import { useAppStore } from '../../store';
 import { useTheme, useHaptic } from '../../hooks';
-import { getTeams60WithShift, formatMatchingTeams } from '../../services';
+import { getTeams60WithShift, formatMatchingTeams, exportShiftsToCalendar, captureAndShare } from '../../services';
+import { ShareableCalendar } from '../../components';
 
 const SHIFT_LETTERS: Record<ShiftType, string> = {
   morning: 'S',
@@ -32,6 +33,12 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
   const [editingDay, setEditingDay] = useState<number | null>(null);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+
+  // Ref for shareable calendar capture
+  const shareableCalendarRef = useRef<View>(null);
 
   // Ref to track current date for swipe gestures
   const currentDateRef = useRef(currentDate);
@@ -203,6 +210,56 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
     ? format(selectedDateObj, "d MMMM EEEE", { locale: tr })
     : '';
 
+  // Handle calendar export
+  const handleExport = async (days: number) => {
+    setShowExportModal(false);
+    setIsExporting(true);
+    haptic.selection();
+
+    try {
+      const startDate = new Date(year, month, 1);
+      const result = await exportShiftsToCalendar(startDate, days, getShiftForDate);
+
+      if (result.success) {
+        haptic.success();
+        Alert.alert(
+          'Başarılı',
+          `${result.count} vardiya takvime eklendi.`,
+          [{ text: 'Tamam' }]
+        );
+      } else {
+        Alert.alert('Hata', result.error || 'Takvime aktarılamadı.');
+      }
+    } catch (error) {
+      Alert.alert('Hata', 'Bir hata oluştu.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Handle share as image
+  const handleShare = async () => {
+    setIsSharing(true);
+    haptic.selection();
+
+    // Small delay to ensure the view is rendered
+    setTimeout(async () => {
+      try {
+        const result = await captureAndShare(shareableCalendarRef);
+
+        if (result.success) {
+          haptic.success();
+        } else {
+          Alert.alert('Hata', result.error || 'Paylaşılamadı.');
+        }
+      } catch (error) {
+        Alert.alert('Hata', 'Bir hata oluştu.');
+      } finally {
+        setIsSharing(false);
+      }
+    }, 100);
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView
@@ -221,6 +278,17 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
         {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Takvim</Text>
+          <TouchableOpacity
+            onPress={handleShare}
+            disabled={isSharing}
+            style={[styles.shareButton, { backgroundColor: colors.surface }]}
+          >
+            {isSharing ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Text style={[styles.shareButtonText, { color: colors.primary }]}>Paylaş</Text>
+            )}
+          </TouchableOpacity>
         </View>
 
         {/* Month Navigation */}
@@ -301,6 +369,20 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
                   {formatMatchingTeams(matchingTeams)}
                 </Text>
               )}
+              {/* Export to Calendar Button */}
+              <TouchableOpacity
+                onPress={() => setShowExportModal(true)}
+                disabled={isExporting}
+                style={[styles.exportButton, { backgroundColor: display.textColor + '20' }]}
+              >
+                {isExporting ? (
+                  <ActivityIndicator size="small" color={display.textColor} />
+                ) : (
+                  <Text style={[styles.exportButtonText, { color: display.textColor }]}>
+                    Takvime Aktar
+                  </Text>
+                )}
+              </TouchableOpacity>
             </View>
           );
         })()}
@@ -450,6 +532,71 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Export Options Modal */}
+      <Modal
+        visible={showExportModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowExportModal(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowExportModal(false)}
+        >
+          <Pressable style={[styles.pickerModalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Takvime Aktar
+            </Text>
+            <Text style={[styles.exportModalSubtitle, { color: colors.textSecondary }]}>
+              Hangi tarih aralığını aktarmak istiyorsunuz?
+            </Text>
+
+            <View style={styles.exportOptions}>
+              <TouchableOpacity
+                onPress={() => handleExport(7)}
+                style={[styles.exportOption, { backgroundColor: colors.border }]}
+              >
+                <Text style={[styles.exportOptionText, { color: colors.text }]}>1 Hafta</Text>
+                <Text style={[styles.exportOptionSubtext, { color: colors.textSecondary }]}>7 gün</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => handleExport(30)}
+                style={[styles.exportOption, { backgroundColor: colors.primary }]}
+              >
+                <Text style={[styles.exportOptionText, { color: '#fff' }]}>1 Ay</Text>
+                <Text style={[styles.exportOptionSubtext, { color: 'rgba(255,255,255,0.7)' }]}>30 gün</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => handleExport(90)}
+                style={[styles.exportOption, { backgroundColor: colors.border }]}
+              >
+                <Text style={[styles.exportOptionText, { color: colors.text }]}>3 Ay</Text>
+                <Text style={[styles.exportOptionSubtext, { color: colors.textSecondary }]}>90 gün</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Pressable
+              style={[styles.modalCancelButton, { backgroundColor: colors.border }]}
+              onPress={() => setShowExportModal(false)}
+            >
+              <Text style={[styles.modalCancelText, { color: colors.text }]}>İptal</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Hidden ShareableCalendar for capture */}
+      <View style={styles.hiddenCapture}>
+        <ShareableCalendar
+          ref={shareableCalendarRef}
+          year={year}
+          month={month}
+          getShiftForDate={getShiftForDate}
+        />
+      </View>
     </SafeAreaView>
   );
 };
@@ -465,6 +612,9 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 8,
@@ -778,5 +928,66 @@ const styles = StyleSheet.create({
   monthItemText: {
     fontSize: 15,
     fontWeight: '600',
+  },
+
+  // Share button
+  shareButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  shareButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
+  // Export button
+  exportButton: {
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  exportButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+
+  // Export Modal
+  exportModalSubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 20,
+  },
+  exportOptions: {
+    gap: 12,
+  },
+  exportOption: {
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  exportOptionText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  exportOptionSubtext: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+
+  // Hidden capture view
+  hiddenCapture: {
+    position: 'absolute',
+    left: -9999,
+    top: -9999,
   },
 });

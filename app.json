@@ -18,6 +18,9 @@
       "buildNumber": "3",
       "config": {
         "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSCalendarsUsageDescription": "Vardiyalarınızı cihaz takviminize aktarmak için takvim erişimi gereklidir."
       }
     },
     "android": {
@@ -27,7 +30,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "permissions": []
+      "permissions": ["READ_CALENDAR", "WRITE_CALENDAR"]
     },
     "web": {
       "favicon": "./assets/favicon.png"
