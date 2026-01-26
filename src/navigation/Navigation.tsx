@@ -2,8 +2,9 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text, View, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 import {
   OnboardingScreen,
@@ -23,18 +24,18 @@ import { useTheme } from '../hooks';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-const TabIcon: React.FC<{ icon: string; focused: boolean; colors: any }> = ({ icon, focused, colors }) => (
+type IoniconsName = keyof typeof Ionicons.glyphMap;
+
+const TabIcon: React.FC<{ icon: IoniconsName; focused: boolean; colors: any }> = ({ icon, focused, colors }) => (
   <View style={[
     styles.tabIconContainer,
     focused && { backgroundColor: colors.primaryLight }
   ]}>
-    <Text style={[
-      styles.tabIcon,
-      { color: focused ? colors.primary : colors.textTertiary },
-      focused && styles.tabIconFocused
-    ]}>
-      {icon}
-    </Text>
+    <Ionicons
+      name={icon}
+      size={22}
+      color={focused ? colors.primary : colors.textTertiary}
+    />
   </View>
 );
 
@@ -63,7 +64,7 @@ const MainTabs: React.FC = () => {
         component={HomeScreen}
         options={{
           tabBarLabel: 'Bugün',
-          tabBarIcon: ({ focused }) => <TabIcon icon="B" focused={focused} colors={colors} />,
+          tabBarIcon: ({ focused }) => <TabIcon icon={focused ? "today" : "today-outline"} focused={focused} colors={colors} />,
         }}
       />
       <Tab.Screen
@@ -71,7 +72,7 @@ const MainTabs: React.FC = () => {
         component={CalendarScreen}
         options={{
           tabBarLabel: 'Takvim',
-          tabBarIcon: ({ focused }) => <TabIcon icon="T" focused={focused} colors={colors} />,
+          tabBarIcon: ({ focused }) => <TabIcon icon={focused ? "calendar" : "calendar-outline"} focused={focused} colors={colors} />,
         }}
       />
       <Tab.Screen
@@ -79,7 +80,7 @@ const MainTabs: React.FC = () => {
         component={StatsScreen}
         options={{
           tabBarLabel: 'İstatistik',
-          tabBarIcon: ({ focused }) => <TabIcon icon="İ" focused={focused} colors={colors} />,
+          tabBarIcon: ({ focused }) => <TabIcon icon={focused ? "stats-chart" : "stats-chart-outline"} focused={focused} colors={colors} />,
         }}
       />
       <Tab.Screen
@@ -87,7 +88,7 @@ const MainTabs: React.FC = () => {
         component={SettingsScreen}
         options={{
           tabBarLabel: 'Ayarlar',
-          tabBarIcon: ({ focused }) => <TabIcon icon="A" focused={focused} colors={colors} />,
+          tabBarIcon: ({ focused }) => <TabIcon icon={focused ? "settings" : "settings-outline"} focused={focused} colors={colors} />,
         }}
       />
     </Tab.Navigator>
@@ -150,12 +151,5 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  tabIcon: {
-    fontSize: 17,
-    fontWeight: '600',
-  },
-  tabIconFocused: {
-    fontWeight: '700',
   },
 });

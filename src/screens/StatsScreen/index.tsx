@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { STRINGS, SHIFT_TIMES, SHIFT_ORDER } from '../../constants';
@@ -17,6 +17,39 @@ const SHIFT_LETTERS: Record<ShiftType, string> = {
   normal: 'N',
   sick: 'R',
   excuse: 'M',
+};
+
+// Animated Bar Component
+const AnimatedBar: React.FC<{
+  percentage: number;
+  color: string;
+  delay: number;
+}> = ({ percentage, color, delay }) => {
+  const widthAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(widthAnim, {
+      toValue: percentage,
+      duration: 800,
+      delay,
+      useNativeDriver: false,
+    }).start();
+  }, [percentage, delay]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.barFill,
+        {
+          backgroundColor: color,
+          width: widthAnim.interpolate({
+            inputRange: [0, 100],
+            outputRange: ['0%', '100%'],
+          }),
+        },
+      ]}
+    />
+  );
 };
 
 export const StatsScreen: React.FC<StatsScreenProps> = () => {
@@ -130,7 +163,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = () => {
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Vardiya Dağılımı</Text>
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
             {stats.sortedShifts.length > 0 ? (
-              stats.sortedShifts.map((shift) => {
+              stats.sortedShifts.map((shift, index) => {
                 const count = stats.shiftCounts[shift] || 0;
                 const percentage = Math.round((count / stats.totalDays) * 100);
                 const display = getShiftDisplay(shift);
@@ -149,11 +182,10 @@ export const StatsScreen: React.FC<StatsScreenProps> = () => {
                     </View>
                     <View style={styles.barContainer}>
                       <View style={[styles.barBackground, { backgroundColor: colors.border }]}>
-                        <View
-                          style={[
-                            styles.barFill,
-                            { backgroundColor: display.color, width: `${percentage}%` },
-                          ]}
+                        <AnimatedBar
+                          percentage={percentage}
+                          color={display.color}
+                          delay={index * 100}
                         />
                       </View>
                       <Text style={[styles.barValue, { color: colors.textSecondary }]}>

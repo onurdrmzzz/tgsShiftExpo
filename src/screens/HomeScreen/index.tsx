@@ -1,12 +1,13 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
+import React, { useState, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Animated, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { STRINGS, SHIFT_TIMES, SHIFT_ORDER } from '../../constants';
 import { HomeScreenProps, ShiftType } from '../../types';
 import { useAppStore } from '../../store';
-import { useTheme } from '../../hooks';
+import { useTheme, useHaptic } from '../../hooks';
+import { Ionicons } from '@expo/vector-icons';
 import { getTeams60WithShift, formatMatchingTeams } from '../../services';
 
 const SHIFT_LETTERS: Record<ShiftType, string> = {
@@ -21,10 +22,79 @@ const SHIFT_LETTERS: Record<ShiftType, string> = {
   excuse: 'M',
 };
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
-  const { activeSystem, getShiftForDate, getCurrentTeam } = useAppStore();
+  const { activeSystem, getShiftForDate, getCurrentTeam, setShiftOverride } = useAppStore();
   const { colors, isDark } = useTheme();
+  const haptic = useHaptic();
   const [refreshing, setRefreshing] = useState(false);
+  const [legendExpanded, setLegendExpanded] = useState(false);
+  const [showQuickAction, setShowQuickAction] = useState(false);
+  const [quickActionDate, setQuickActionDate] = useState<string | null>(null);
+
+  // Animation values
+  const todayCardScale = useRef(new Animated.Value(1)).current;
+  const tomorrowCardScale = useRef(new Animated.Value(1)).current;
+  const legendHeight = useRef(new Animated.Value(0)).current;
+  const legendRotation = useRef(new Animated.Value(0)).current;
+
+  const toggleLegend = () => {
+    const toValue = legendExpanded ? 0 : 1;
+    setLegendExpanded(!legendExpanded);
+    Animated.parallel([
+      Animated.spring(legendHeight, {
+        toValue,
+        useNativeDriver: false,
+        speed: 12,
+        bounciness: 0,
+      }),
+      Animated.spring(legendRotation, {
+        toValue,
+        useNativeDriver: true,
+        speed: 12,
+        bounciness: 0,
+      }),
+    ]).start();
+  };
+
+  const legendRotateInterpolate = legendRotation.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg'],
+  });
+
+  const handleLongPress = (dateStr: string) => {
+    haptic.medium();
+    setQuickActionDate(dateStr);
+    setShowQuickAction(true);
+  };
+
+  const handleQuickShiftChange = (shift: ShiftType) => {
+    if (quickActionDate) {
+      setShiftOverride(quickActionDate, shift);
+      haptic.success();
+    }
+    setShowQuickAction(false);
+    setQuickActionDate(null);
+  };
+
+  const animatePressIn = (scaleValue: Animated.Value) => {
+    Animated.spring(scaleValue, {
+      toValue: 0.97,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  };
+
+  const animatePressOut = (scaleValue: Animated.Value) => {
+    Animated.spring(scaleValue, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  };
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -91,13 +161,20 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           <Text style={[styles.date, { color: colors.textSecondary }]}>{formattedDate}</Text>
         </View>
         <View style={styles.emptyState}>
-          <View style={[styles.emptyIcon, { backgroundColor: colors.border }]}>
-            <Text style={[styles.emptyIconText, { color: colors.textTertiary }]}>?</Text>
+          <View style={[styles.emptyIcon, { backgroundColor: colors.primaryLight }]}>
+            <Ionicons name="calendar-outline" size={40} color={colors.primary} />
           </View>
           <Text style={[styles.emptyTitle, { color: colors.text }]}>Vardiya Verisi Yok</Text>
           <Text style={[styles.emptyDescription, { color: colors.textSecondary }]}>
             Ayarlardan vardiya bilgilerinizi girin
           </Text>
+          <Pressable
+            style={[styles.emptyButton, { backgroundColor: colors.primary }]}
+            onPress={() => navigation.navigate('Settings')}
+          >
+            <Ionicons name="settings-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.emptyButtonText}>Ayarlara Git</Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     );
@@ -135,12 +212,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         </View>
 
         {/* Today's Shift Card */}
-        <Pressable
+        <AnimatedPressable
           onPress={() => navigation.navigate('Calendar')}
-          style={({ pressed }) => [
+          onLongPress={() => handleLongPress(todayStr)}
+          delayLongPress={400}
+          onPressIn={() => animatePressIn(todayCardScale)}
+          onPressOut={() => animatePressOut(todayCardScale)}
+          style={[
             styles.todayCard,
             { backgroundColor: todayDisplay.color },
-            pressed && { opacity: 0.95 }
+            { transform: [{ scale: todayCardScale }] },
           ]}>
           <View style={styles.todayHeader}>
             <Text style={[styles.todayLabel, { color: todayDisplay.textColor }]}>
@@ -173,13 +254,20 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               </Text>
             </View>
           )}
-        </Pressable>
+        </AnimatedPressable>
 
         {/* Tomorrow Card */}
         {tomorrowShift && (
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Yarın</Text>
-            <View style={[styles.smallCard, { backgroundColor: getShiftDisplay(tomorrowShift).color }]}>
+            <AnimatedPressable
+              onPress={() => navigation.navigate('Calendar')}
+              onLongPress={() => handleLongPress(tomorrowStr)}
+              delayLongPress={400}
+              onPressIn={() => animatePressIn(tomorrowCardScale)}
+              onPressOut={() => animatePressOut(tomorrowCardScale)}
+              style={[styles.smallCard, { backgroundColor: getShiftDisplay(tomorrowShift).color }, { transform: [{ scale: tomorrowCardScale }] }]}
+            >
               <View style={styles.smallCardContent}>
                 <View>
                   <Text style={[styles.smallCardDate, { color: getShiftDisplay(tomorrowShift).textColor }]}>
@@ -200,7 +288,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   </Text>
                 </View>
               </View>
-            </View>
+            </AnimatedPressable>
           </View>
         )}
 
@@ -259,25 +347,104 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           );
         })()}
 
-        {/* Legend */}
+        {/* Legend - Collapsible */}
         <View style={[styles.legendCard, { backgroundColor: colors.surface }]}>
-          {SHIFT_ORDER.map((shift) => {
-            const display = getShiftDisplay(shift);
-            return (
-              <View key={shift} style={styles.legendItem}>
-                <View style={[styles.legendBadge, { backgroundColor: display.color }]}>
-                  <Text style={[styles.legendText, { color: display.textColor }]}>
-                    {SHIFT_LETTERS[shift]}
-                  </Text>
-                </View>
-                <Text style={[styles.legendLabel, { color: colors.textSecondary }]}>
-                  {STRINGS.shifts[shift]}
-                </Text>
-              </View>
-            );
-          })}
+          <Pressable style={styles.legendHeader} onPress={toggleLegend}>
+            <Text style={[styles.legendTitle, { color: colors.text }]}>Vardiya Açıklamaları</Text>
+            <Animated.View style={{ transform: [{ rotate: legendRotateInterpolate }] }}>
+              <Ionicons name="chevron-down" size={20} color={colors.textTertiary} />
+            </Animated.View>
+          </Pressable>
+          <Animated.View style={[
+            styles.legendContent,
+            {
+              maxHeight: legendHeight.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 200],
+              }),
+              opacity: legendHeight,
+            }
+          ]}>
+            <View style={styles.legendGrid}>
+              {SHIFT_ORDER.map((shift) => {
+                const display = getShiftDisplay(shift);
+                return (
+                  <View key={shift} style={styles.legendItem}>
+                    <View style={[styles.legendBadge, { backgroundColor: display.color }]}>
+                      <Text style={[styles.legendText, { color: display.textColor }]}>
+                        {SHIFT_LETTERS[shift]}
+                      </Text>
+                    </View>
+                    <Text style={[styles.legendLabel, { color: colors.textSecondary }]}>
+                      {STRINGS.shifts[shift]}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </Animated.View>
         </View>
       </ScrollView>
+
+      {/* Quick Action Modal */}
+      <Modal
+        visible={showQuickAction}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowQuickAction(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowQuickAction(false)}
+        >
+          <Pressable style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Vardiya Değiştir
+            </Text>
+            {quickActionDate && (
+              <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+                {format(new Date(quickActionDate), "d MMMM EEEE", { locale: tr })}
+              </Text>
+            )}
+            <View style={styles.modalOptions}>
+              {SHIFT_ORDER.map((shift) => {
+                const display = getShiftDisplay(shift);
+                const currentShift = quickActionDate ? getShiftForDate(quickActionDate) : null;
+                const isCurrentShift = currentShift === shift;
+                return (
+                  <Pressable
+                    key={shift}
+                    style={[
+                      styles.modalOption,
+                      { backgroundColor: display.color },
+                      isCurrentShift && styles.modalOptionSelected,
+                    ]}
+                    onPress={() => handleQuickShiftChange(shift)}
+                  >
+                    <View style={[styles.modalOptionBadge, { backgroundColor: display.textColor + '20' }]}>
+                      <Text style={[styles.modalOptionLetter, { color: display.textColor }]}>
+                        {SHIFT_LETTERS[shift]}
+                      </Text>
+                    </View>
+                    <Text style={[styles.modalOptionLabel, { color: display.textColor }]}>
+                      {STRINGS.shifts[shift]}
+                    </Text>
+                    {isCurrentShift && (
+                      <Ionicons name="checkmark" size={20} color={display.textColor} />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Pressable
+              style={[styles.modalCancelButton, { backgroundColor: colors.border }]}
+              onPress={() => setShowQuickAction(false)}
+            >
+              <Text style={[styles.modalCancelText, { color: colors.text }]}>İptal</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -475,19 +642,36 @@ const styles = StyleSheet.create({
 
   // Legend
   legendCard: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-start',
     marginHorizontal: 20,
     marginTop: 24,
     borderRadius: 16,
-    padding: 12,
-    gap: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 8,
     elevation: 2,
+    overflow: 'hidden',
+  },
+  legendHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+  },
+  legendTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  legendContent: {
+    overflow: 'hidden',
+  },
+  legendGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    gap: 8,
   },
   legendItem: {
     alignItems: 'center',
@@ -520,25 +704,104 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   emptyIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
+    width: 88,
+    height: 88,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
-  },
-  emptyIconText: {
-    fontSize: 36,
-    fontWeight: '600',
+    marginBottom: 24,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '700',
   },
   emptyDescription: {
     fontSize: 15,
     textAlign: 'center',
     marginTop: 8,
     lineHeight: 22,
+  },
+  emptyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginTop: 24,
+  },
+  emptyButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20,
+    textTransform: 'capitalize',
+  },
+  modalOptions: {
+    gap: 10,
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+  },
+  modalOptionSelected: {
+    borderWidth: 2,
+    borderColor: 'rgba(0,0,0,0.2)',
+  },
+  modalOptionBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  modalOptionLetter: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  modalOptionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+  },
+  modalCancelButton: {
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

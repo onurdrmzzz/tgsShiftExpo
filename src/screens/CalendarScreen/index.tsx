@@ -8,7 +8,7 @@ import { CalendarScreenProps, ShiftType } from '../../types';
 import { useAppStore } from '../../store';
 import { useTheme, useHaptic } from '../../hooks';
 import { getTeams60WithShift, formatMatchingTeams, exportShiftsToCalendar, captureAndShare } from '../../services';
-import { ShareableCalendar } from '../../components';
+import { ShareableCalendar, CollapsibleLegend } from '../../components';
 
 const SHIFT_LETTERS: Record<ShiftType, string> = {
   morning: 'S',
@@ -407,30 +407,14 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
         })()}
 
         {/* Legend */}
-        <View style={[styles.legendCard, { backgroundColor: colors.surface }]}>
-          {SHIFT_ORDER.map((shift) => {
-            const display = getShiftDisplay(shift);
-            return (
-              <View key={shift} style={styles.legendItem}>
-                <View style={[styles.legendBadge, { backgroundColor: display.color }]}>
-                  <Text style={[styles.legendText, { color: display.textColor }]}>
-                    {SHIFT_LETTERS[shift]}
-                  </Text>
-                </View>
-                <Text style={[styles.legendLabel, { color: colors.textSecondary }]}>
-                  {STRINGS.shifts[shift]}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
+        <CollapsibleLegend />
       </ScrollView>
 
       {/* Edit Shift Modal */}
       <Modal
         visible={showEditModal}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setShowEditModal(false)}
       >
         <Pressable
@@ -489,7 +473,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
       <Modal
         visible={showMonthPicker}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setShowMonthPicker(false)}
       >
         <Pressable
@@ -556,7 +540,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
       <Modal
         visible={showExportModal}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setShowExportModal(false)}
       >
         <Pressable

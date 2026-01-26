@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { OnboardingScreenProps } from '../../types';
 import { useTheme } from '../../hooks';
 
@@ -21,7 +22,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }
         {/* Header */}
         <View style={styles.header}>
           <View style={[styles.logoContainer, { backgroundColor: colors.primary }]}>
-            <Text style={styles.logoText}>V</Text>
+            <Ionicons name="calendar" size={36} color="#fff" />
           </View>
           <Text style={[styles.title, { color: colors.text }]}>TGS Vardiya</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
@@ -46,7 +47,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }
           >
             <View style={styles.cardHeader}>
               <View style={[styles.cardIconContainer, { backgroundColor: colors.primaryLight }]}>
-                <Text style={[styles.cardIcon, { color: colors.primary }]}>60</Text>
+                <Ionicons name="sync" size={22} color={colors.primary} />
               </View>
               <View style={[styles.badge, { backgroundColor: colors.primary }]}>
                 <Text style={styles.badgeText}>Otomatik</Text>
@@ -70,7 +71,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }
           >
             <View style={styles.cardHeader}>
               <View style={[styles.cardIconContainer, { backgroundColor: '#fef3c7' }]}>
-                <Text style={[styles.cardIcon, { color: '#d97706' }]}>30</Text>
+                <Ionicons name="create-outline" size={22} color="#d97706" />
               </View>
               <View style={[styles.badge, { backgroundColor: '#d97706' }]}>
                 <Text style={styles.badgeText}>Manuel</Text>
@@ -121,11 +122,6 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
   },
-  logoText: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#fff',
-  },
   title: {
     fontSize: 28,
     fontWeight: '700',
@@ -169,10 +165,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  cardIcon: {
-    fontSize: 18,
-    fontWeight: '800',
   },
   badge: {
     paddingHorizontal: 12,

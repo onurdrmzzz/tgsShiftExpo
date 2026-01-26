@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { STRINGS } from '../../constants';
 import { SettingsScreenProps } from '../../types';
 import { useAppStore } from '../../store';
@@ -8,9 +9,12 @@ import { useTheme } from '../../hooks';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types';
+import Constants from 'expo-constants';
+
+type IoniconsName = keyof typeof Ionicons.glyphMap;
 
 interface SettingsItemProps {
-  icon: string;
+  icon: IoniconsName;
   label: string;
   value?: string;
   onPress?: () => void;
@@ -39,12 +43,11 @@ const SettingsItem: React.FC<SettingsItemProps> = ({
         styles.iconContainer,
         { backgroundColor: danger ? '#fee2e2' : colors.primaryLight }
       ]}>
-        <Text style={[
-          styles.icon,
-          { color: danger ? colors.error : colors.primary }
-        ]}>
-          {icon}
-        </Text>
+        <Ionicons
+          name={icon}
+          size={18}
+          color={danger ? colors.error : colors.primary}
+        />
       </View>
       <Text style={[
         styles.rowLabel,
@@ -56,14 +59,14 @@ const SettingsItem: React.FC<SettingsItemProps> = ({
     <View style={styles.rowRight}>
       {value && <Text style={[styles.rowValue, { color: colors.textSecondary }]}>{value}</Text>}
       {showChevron && onPress && (
-        <Text style={[styles.chevron, { color: colors.textTertiary }]}>›</Text>
+        <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
       )}
     </View>
   </TouchableOpacity>
 );
 
 interface SettingsToggleProps {
-  icon: string;
+  icon: IoniconsName;
   label: string;
   value: boolean;
   onToggle: (value: boolean) => void;
@@ -80,7 +83,7 @@ const SettingsToggle: React.FC<SettingsToggleProps> = ({
   <View style={styles.row}>
     <View style={styles.rowLeft}>
       <View style={[styles.iconContainer, { backgroundColor: colors.primaryLight }]}>
-        <Text style={[styles.icon, { color: colors.primary }]}>{icon}</Text>
+        <Ionicons name={icon} size={18} color={colors.primary} />
       </View>
       <Text style={[styles.rowLabel, { color: colors.text }]}>{label}</Text>
     </View>
@@ -159,7 +162,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
           </Text>
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
             <SettingsItem
-              icon="S"
+              icon="cog-outline"
               label="Sistem"
               value={systemLabel}
               showChevron={false}
@@ -167,7 +170,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
             />
             <View style={[styles.separator, { backgroundColor: colors.border }]} />
             <SettingsItem
-              icon="E"
+              icon="people-outline"
               label="Ekip"
               value={team || '-'}
               showChevron={false}
@@ -177,7 +180,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
               <>
                 <View style={[styles.separator, { backgroundColor: colors.border }]} />
                 <SettingsItem
-                  icon="D"
+                  icon="calendar-outline"
                   label="Döngü Başlangıcı"
                   value={cycleStartDate}
                   showChevron={false}
@@ -195,7 +198,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
           </Text>
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
             <SettingsToggle
-              icon="T"
+              icon="moon-outline"
               label="Koyu Tema"
               value={isDark}
               onToggle={toggleTheme}
@@ -211,7 +214,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
           </Text>
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
             <SettingsItem
-              icon="E"
+              icon="swap-horizontal-outline"
               label="Ekip Değiştir"
               onPress={handleChangeTeam}
               colors={colors}
@@ -220,7 +223,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
               <>
                 <View style={[styles.separator, { backgroundColor: colors.border }]} />
                 <SettingsItem
-                  icon="D"
+                  icon="calendar-number-outline"
                   label="Döngü Başlangıcını Değiştir"
                   onPress={handleChangeCycleStart}
                   colors={colors}
@@ -231,14 +234,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
               <>
                 <View style={[styles.separator, { backgroundColor: colors.border }]} />
                 <SettingsItem
-                  icon="Y"
+                  icon="document-outline"
                   label="Vardiya Yükle (Excel)"
                   onPress={handleImportExcel}
                   colors={colors}
                 />
                 <View style={[styles.separator, { backgroundColor: colors.border }]} />
                 <SettingsItem
-                  icon="V"
+                  icon="create-outline"
                   label="Vardiyaları Düzenle"
                   onPress={handleEditShifts}
                   colors={colors}
@@ -255,9 +258,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
           </Text>
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
             <SettingsItem
-              icon="i"
+              icon="information-circle-outline"
               label="Uygulama Versiyonu"
-              value="1.0.0"
+              value={Constants.expoConfig?.version || '1.0.0'}
               showChevron={false}
               colors={colors}
             />
@@ -354,20 +357,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  icon: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
   rowLabel: {
     fontSize: 16,
     fontWeight: '500',
   },
   rowValue: {
     fontSize: 15,
-  },
-  chevron: {
-    fontSize: 22,
-    fontWeight: '300',
   },
   separator: {
     height: 1,
