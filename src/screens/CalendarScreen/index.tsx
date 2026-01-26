@@ -36,6 +36,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
   const [showExportModal, setShowExportModal] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  const [scrollEnabled, setScrollEnabled] = useState(true);
 
   // Ref for shareable calendar capture
   const shareableCalendarRef = useRef<View>(null);
@@ -50,7 +51,13 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dy) < 50;
+        // Yatay hareket dikey hareketten belirgin şekilde fazla olmalı
+        const isHorizontalSwipe = Math.abs(gestureState.dx) > 15 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 2;
+        return isHorizontalSwipe;
+      },
+      onPanResponderGrant: () => {
+        // Swipe başladığında dikey scroll'u kilitle
+        setScrollEnabled(false);
       },
       onPanResponderMove: (_, gestureState) => {
         panX.setValue(gestureState.dx);
@@ -71,6 +78,17 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
           setCurrentDate(new Date(y, m + 1, 1));
           setSelectedDay(null);
         }
+        Animated.spring(panX, {
+          toValue: 0,
+          useNativeDriver: true,
+        }).start(() => {
+          // Animasyon bitince scroll'u tekrar aç
+          setScrollEnabled(true);
+        });
+      },
+      onPanResponderTerminate: () => {
+        // Gesture iptal olursa scroll'u aç
+        setScrollEnabled(true);
         Animated.spring(panX, {
           toValue: 0,
           useNativeDriver: true,
@@ -266,6 +284,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = () => {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        scrollEnabled={scrollEnabled}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

@@ -77,9 +77,9 @@ export const SHIFT_DISPLAY: Record<ShiftType, ShiftDisplayInfo> = {
 };
 
 export const SHIFT_TIMES: Record<ShiftType, { start: string; end: string } | null> = {
-  morning: { start: '06:00', end: '14:00' },
-  evening: { start: '14:00', end: '22:00' },
-  night: { start: '22:00', end: '06:00' },
+  morning: { start: '06:00', end: '15:00' },
+  evening: { start: '15:00', end: '00:30' },
+  night: { start: '23:00', end: '06:00' },
   off: null,
   annual: null,
   training: { start: '09:00', end: '17:00' },

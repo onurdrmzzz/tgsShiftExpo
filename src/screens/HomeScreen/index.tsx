@@ -7,8 +7,7 @@ import { STRINGS, SHIFT_TIMES, SHIFT_ORDER } from '../../constants';
 import { HomeScreenProps, ShiftType } from '../../types';
 import { useAppStore } from '../../store';
 import { useTheme } from '../../hooks';
-import { getTodayShift, getTomorrowShift, getUpcomingShifts, getTeams60WithShift, formatMatchingTeams } from '../../services';
-import { getTodayShift30, getTomorrowShift30 } from '../../services/shift30Manager';
+import { getTeams60WithShift, formatMatchingTeams } from '../../services';
 
 const SHIFT_LETTERS: Record<ShiftType, string> = {
   morning: 'S',
@@ -23,7 +22,7 @@ const SHIFT_LETTERS: Record<ShiftType, string> = {
 };
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
-  const { activeSystem, cycleStartDate, monthlyShifts, getCurrentTeam } = useAppStore();
+  const { activeSystem, getShiftForDate, getCurrentTeam } = useAppStore();
   const { colors, isDark } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -41,27 +40,22 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   const team = getCurrentTeam();
 
-  let todayShift: ShiftType | null = null;
-  let tomorrowShift: ShiftType | null = null;
-  let weekShifts: Array<{ date: Date; shift: ShiftType }> = [];
+  // Store'dan shift al - override'ları da içerir
+  const todayStr = format(today, 'yyyy-MM-dd');
+  const tomorrowStr = format(tomorrow, 'yyyy-MM-dd');
 
-  if (activeSystem === 'system60' && cycleStartDate) {
-    todayShift = getTodayShift(cycleStartDate);
-    tomorrowShift = getTomorrowShift(cycleStartDate);
-    weekShifts = getUpcomingShifts(cycleStartDate, 7);
-  } else if (activeSystem === 'system30') {
-    todayShift = getTodayShift30(monthlyShifts);
-    tomorrowShift = getTomorrowShift30(monthlyShifts);
+  const todayShift = getShiftForDate(todayStr);
+  const tomorrowShift = getShiftForDate(tomorrowStr);
 
-    for (let i = 0; i < 7; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() + i);
-      const monthKey = format(date, 'yyyy-MM');
-      const day = date.getDate();
-      const shift = monthlyShifts[monthKey]?.[day];
-      if (shift) {
-        weekShifts.push({ date, shift });
-      }
+  // Haftalık vardiyalar - store'dan al
+  const weekShifts: Array<{ date: Date; shift: ShiftType }> = [];
+  for (let i = 0; i < 7; i++) {
+    const date = new Date();
+    date.setDate(date.getDate() + i);
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const shift = getShiftForDate(dateStr);
+    if (shift) {
+      weekShifts.push({ date, shift });
     }
   }
 
