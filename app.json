@@ -20,7 +20,9 @@
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
-        "NSCalendarsUsageDescription": "Vardiyalarınızı cihaz takviminize aktarmak için takvim erişimi gereklidir."
+        "NSCalendarsUsageDescription": "Vardiyalarınızı cihaz takviminize aktarmak için takvim erişimi gereklidir.",
+        "NSCalendarsFullAccessUsageDescription": "Vardiyalarınızı cihaz takviminize aktarmak için takvim erişimi gereklidir.",
+        "NSCalendarsWriteOnlyAccessUsageDescription": "Vardiyalarınızı cihaz takviminize aktarmak için takvim erişimi gereklidir."
       }
     },
     "android": {

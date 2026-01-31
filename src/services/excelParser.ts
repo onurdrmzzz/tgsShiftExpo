@@ -125,8 +125,15 @@ function extractMonthFromFilename(filename: string): string {
 
 /**
  * Parse Excel file and extract employee shift data
+ * @param fileUri - URI of the Excel file
+ * @param filename - Name of the file (used for month extraction if overrideMonth not provided)
+ * @param overrideMonth - Optional month override in "YYYY-MM" format (e.g., "2026-01")
  */
-export async function parseExcelFile(fileUri: string, filename: string): Promise<ParseResult> {
+export async function parseExcelFile(
+  fileUri: string,
+  filename: string,
+  overrideMonth?: string
+): Promise<ParseResult> {
   try {
     // Read file as base64
     const base64 = await FileSystem.readAsStringAsync(fileUri, {
@@ -148,8 +155,8 @@ export async function parseExcelFile(fileUri: string, filename: string): Promise
       return { success: false, employees: [], month: '', error: 'Dosya formatı geçersiz' };
     }
 
-    // Extract month from filename
-    const month = extractMonthFromFilename(filename);
+    // Use override month if provided, otherwise extract from filename
+    const month = overrideMonth || extractMonthFromFilename(filename);
     const [year, monthNum] = month.split('-');
 
     // Get days in month

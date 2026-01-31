@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Modal,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
@@ -20,6 +21,7 @@ import {
   ParsedEmployee,
   ParseResult,
 } from '../../services/excelParser';
+import { STRINGS } from '../../constants/strings';
 
 export const ExcelImportScreen: React.FC<ExcelImportScreenProps> = ({
   navigation,
@@ -34,10 +36,22 @@ export const ExcelImportScreen: React.FC<ExcelImportScreenProps> = ({
 
   const [sicil, setSicil] = useState(preferences.sicilNo || '');
   const [fileName, setFileName] = useState<string | null>(null);
+  const [fileUri, setFileUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [foundEmployee, setFoundEmployee] = useState<ParsedEmployee | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Month selection state
+  const currentDate = new Date();
+  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth()); // 0-indexed
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+
+  // Generate month key in "YYYY-MM" format
+  const getMonthKey = () => {
+    return `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+  };
 
   // Try to find employee when sicil or parseResult changes
   useEffect(() => {
@@ -69,10 +83,18 @@ export const ExcelImportScreen: React.FC<ExcelImportScreenProps> = ({
 
       const file = result.assets[0];
       setFileName(file.name);
+      setFileUri(file.uri);
       setLoading(true);
 
-      const parsed = await parseExcelFile(file.uri, file.name);
+      const parsed = await parseExcelFile(file.uri, file.name, getMonthKey());
       setParseResult(parsed);
+
+      // Update selected month from parsed result if available
+      if (parsed.success && parsed.month) {
+        const [year, month] = parsed.month.split('-');
+        setSelectedYear(parseInt(year));
+        setSelectedMonth(parseInt(month) - 1); // Convert to 0-indexed
+      }
 
       if (!parsed.success) {
         setError(parsed.error || 'Dosya okunamadı');
@@ -82,6 +104,33 @@ export const ExcelImportScreen: React.FC<ExcelImportScreenProps> = ({
       setError('Dosya seçilirken hata oluştu');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Re-parse file when month changes
+  const handleMonthChange = async (year: number, month: number) => {
+    setSelectedYear(year);
+    setSelectedMonth(month);
+    setShowMonthPicker(false);
+
+    if (fileUri && fileName) {
+      setLoading(true);
+      try {
+        const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+        const parsed = await parseExcelFile(fileUri, fileName, monthKey);
+        setParseResult(parsed);
+
+        if (!parsed.success) {
+          setError(parsed.error || 'Dosya okunamadı');
+        } else {
+          setError(null);
+        }
+      } catch (err) {
+        console.error('Re-parse error:', err);
+        setError('Dosya işlenirken hata oluştu');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -197,6 +246,26 @@ export const ExcelImportScreen: React.FC<ExcelImportScreenProps> = ({
           )}
         </View>
 
+        {/* Month Selector - shown after file is loaded */}
+        {parseResult?.success && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Ay Seçimi</Text>
+            <TouchableOpacity
+              style={[styles.monthSelector, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={() => setShowMonthPicker(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.monthSelectorText, { color: colors.text }]}>
+                {STRINGS.months[selectedMonth]} {selectedYear}
+              </Text>
+              <Text style={[styles.monthSelectorArrow, { color: colors.textSecondary }]}>▼</Text>
+            </TouchableOpacity>
+            <Text style={[styles.monthHint, { color: colors.textSecondary }]}>
+              Farklı bir ay için veri yüklemek istiyorsanız değiştirin
+            </Text>
+          </View>
+        )}
+
         {/* Error Message */}
         {error && (
           <View style={[styles.errorBox, { backgroundColor: colors.error + '20' }]}>
@@ -283,6 +352,72 @@ export const ExcelImportScreen: React.FC<ExcelImportScreenProps> = ({
             </Text>
           </View>
         </View>
+      </Modal>
+
+      {/* Month Picker Modal */}
+      <Modal transparent visible={showMonthPicker} animationType="fade">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowMonthPicker(false)}
+        >
+          <View style={[styles.monthPickerCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.monthPickerTitle, { color: colors.text }]}>Ay Seçin</Text>
+
+            {/* Year Selector */}
+            <View style={styles.yearSelector}>
+              <TouchableOpacity
+                style={[styles.yearButton, { backgroundColor: colors.primaryLight }]}
+                onPress={() => setSelectedYear(selectedYear - 1)}
+              >
+                <Text style={[styles.yearButtonText, { color: colors.primary }]}>‹</Text>
+              </TouchableOpacity>
+              <Text style={[styles.yearText, { color: colors.text }]}>{selectedYear}</Text>
+              <TouchableOpacity
+                style={[styles.yearButton, { backgroundColor: colors.primaryLight }]}
+                onPress={() => setSelectedYear(selectedYear + 1)}
+              >
+                <Text style={[styles.yearButtonText, { color: colors.primary }]}>›</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Month Grid */}
+            <View style={styles.monthGrid}>
+              {STRINGS.months.map((monthName, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.monthItem,
+                    {
+                      backgroundColor: selectedMonth === index ? colors.primary : colors.background,
+                    },
+                  ]}
+                  onPress={() => handleMonthChange(selectedYear, index)}
+                >
+                  <Text
+                    style={[
+                      styles.monthItemText,
+                      {
+                        color: selectedMonth === index ? '#fff' : colors.text,
+                        fontWeight: selectedMonth === index ? '700' : '500',
+                      },
+                    ]}
+                  >
+                    {monthName.substring(0, 3)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Close Button */}
+            <TouchableOpacity
+              style={[styles.closeButton, { backgroundColor: colors.border }]}
+              onPress={() => setShowMonthPicker(false)}
+            >
+              <Text style={[styles.closeButtonText, { color: colors.text }]}>Kapat</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
       </Modal>
     </SafeAreaView>
   );
@@ -474,5 +609,99 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
+  },
+  // Month selector styles
+  monthSelector: {
+    height: 56,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  monthSelectorText: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  monthSelectorArrow: {
+    fontSize: 14,
+  },
+  monthHint: {
+    fontSize: 13,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  // Month picker modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  monthPickerCard: {
+    width: 320,
+    padding: 24,
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 10,
+  },
+  monthPickerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  yearSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    gap: 24,
+  },
+  yearButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  yearButtonText: {
+    fontSize: 28,
+    fontWeight: '300',
+  },
+  yearText: {
+    fontSize: 22,
+    fontWeight: '700',
+    minWidth: 80,
+    textAlign: 'center',
+  },
+  monthGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 20,
+  },
+  monthItem: {
+    width: '30%',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  monthItemText: {
+    fontSize: 15,
+  },
+  closeButton: {
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
