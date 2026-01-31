@@ -2,7 +2,7 @@
   "expo": {
     "name": "TGS Vardiya",
     "slug": "tgs-vardiya",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -15,7 +15,7 @@
     "ios": {
       "bundleIdentifier": "com.tgsvardiya.app",
       "supportsTablet": true,
-      "buildNumber": "5",
+      "buildNumber": "6",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -27,12 +27,17 @@
     },
     "android": {
       "package": "com.tgsvardiya.app",
-      "versionCode": 5,
+      "versionCode": 6,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "permissions": ["READ_CALENDAR", "WRITE_CALENDAR"]
+      "permissions": [
+        "READ_CALENDAR",
+        "WRITE_CALENDAR",
+        "READ_CALENDAR",
+        "WRITE_CALENDAR"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -41,6 +46,12 @@
       "eas": {
         "projectId": "54340282-4311-4c61-a61a-f0a8fe883987"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/54340282-4311-4c61-a61a-f0a8fe883987"
     }
   }
 }
